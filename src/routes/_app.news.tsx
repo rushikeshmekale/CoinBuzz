@@ -4,6 +4,7 @@ import { ExternalLink, RefreshCw, Newspaper } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_app/news")({
   component: NewsPage,
@@ -20,11 +21,32 @@ type Article = {
 
 const CATEGORIES = [
   { id: "crypto", label: "Crypto", q: "bitcoin OR ethereum OR crypto OR blockchain" },
-  { id: "defi", label: "DeFi", q: "DeFi OR decentralized finance OR NFT OR web3" },
-  { id: "macro", label: "Macro", q: "Federal Reserve OR inflation OR interest rates OR economy" },
+  { id: "defi",   label: "DeFi",   q: "DeFi OR decentralized finance OR NFT OR web3" },
+  { id: "macro",  label: "Macro",  q: "Federal Reserve OR inflation OR interest rates OR economy" },
 ] as const;
 
 type Category = typeof CATEGORIES[number]["id"];
+
+// Calls the Supabase Edge Function proxy — works on production AND localhost
+async function fetchNews(q: string): Promise<Article[]> {
+  const { data, error } = await supabase.functions.invoke("news-proxy", {
+    body: null,
+    headers: {},
+    method: "GET",
+  });
+
+  // supabase.functions.invoke doesn't support query params easily, use fetch directly
+  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/news-proxy?q=${encodeURIComponent(q)}&pageSize=20`;
+  const res = await fetch(url, {
+    headers: {
+      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+    },
+  });
+  const json = await res.json();
+  if (json.status === "error" || json.error) throw new Error(json.message ?? json.error ?? "Failed");
+  return (json.articles ?? []).filter((a: Article) => a.title && a.title !== "[Removed]");
+}
 
 function NewsPage() {
   const [articles, setArticles] = useState<Article[]>([]);
@@ -32,20 +54,14 @@ function NewsPage() {
   const [error, setError] = useState<string | null>(null);
   const [category, setCategory] = useState<Category>("crypto");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const apiKey = import.meta.env.VITE_NEWS_API_KEY;
 
   async function load(cat: Category) {
-    if (!apiKey) { setLoading(false); return; }
     setLoading(true);
     setError(null);
     const q = CATEGORIES.find(c => c.id === cat)?.q ?? "crypto";
     try {
-      const res = await fetch(
-        `https://newsapi.org/v2/everything?q=${encodeURIComponent(q)}&sortBy=publishedAt&pageSize=20&language=en&apiKey=${apiKey}`
-      );
-      const data = await res.json();
-      if (data.status === "error") throw new Error(data.message);
-      setArticles((data.articles ?? []).filter((a: Article) => a.title && a.title !== "[Removed]"));
+      const data = await fetchNews(q);
+      setArticles(data);
       setLastUpdated(new Date());
     } catch (e: any) {
       setError(e.message ?? "Failed to fetch news");
@@ -54,34 +70,7 @@ function NewsPage() {
     }
   }
 
-  useEffect(() => { load(category); }, [category, apiKey]);
-
-  if (!apiKey) {
-    return (
-      <div className="space-y-6 max-w-3xl mx-auto">
-        <div>
-          <h1 className="font-display text-3xl font-bold lg:text-4xl">Market news</h1>
-          <p className="text-muted-foreground mt-1">Headlines to stay ahead of the moves.</p>
-        </div>
-        <div className="flex flex-col items-center justify-center py-20 text-center rounded-xl border border-dashed bg-card gap-4">
-          <Newspaper className="h-10 w-10 text-muted-foreground" />
-          <h2 className="font-semibold text-lg">News API not connected</h2>
-          <p className="text-muted-foreground text-sm max-w-sm">
-            Add <code className="bg-muted px-1.5 py-0.5 rounded text-xs">VITE_NEWS_API_KEY</code> to your{" "}
-            <code className="bg-muted px-1.5 py-0.5 rounded text-xs">.env</code> file to enable live news.
-          </p>
-          <a
-            href="https://newsapi.org/register"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1.5 text-primary text-sm font-semibold hover:underline"
-          >
-            Get a free API key <ExternalLink className="h-3.5 w-3.5" />
-          </a>
-        </div>
-      </div>
-    );
-  }
+  useEffect(() => { load(category); }, [category]);
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
@@ -98,7 +87,6 @@ function NewsPage() {
         </Button>
       </div>
 
-      {/* Category tabs */}
       <div className="flex gap-2">
         {CATEGORIES.map(c => (
           <button
@@ -166,7 +154,10 @@ function NewsPage() {
             </a>
           ))}
           {articles.length === 0 && !error && (
-            <div className="text-center py-12 text-muted-foreground text-sm">No articles found.</div>
+            <div className="flex flex-col items-center py-16 text-center gap-3">
+              <Newspaper className="h-10 w-10 text-muted-foreground" />
+              <p className="text-muted-foreground text-sm">No articles found.</p>
+            </div>
           )}
         </div>
       )}

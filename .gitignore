@@ -31,3 +31,5 @@ npm-debug.log*
 
 # Lovable (remove if migrating)
 .workspace/
+
+.vercel

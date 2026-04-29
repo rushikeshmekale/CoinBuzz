@@ -19,15 +19,8 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const {
-      userId,
-      symbol,
-      condition,
-      targetPrice,
-      triggeredPrice,
-      note,
-      displayName,
-    } = await req.json();
+    const { userId, symbol, condition, targetPrice, triggeredPrice, note, displayName } =
+      await req.json();
 
     if (!userId || !symbol) {
       return new Response(JSON.stringify({ error: "Missing fields" }), {
@@ -38,14 +31,18 @@ serve(async (req) => {
 
     // Get user email from Supabase auth
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-    const { data: { user } } = await admin.auth.admin.getUserById(userId);
+    const {
+      data: { user },
+    } = await admin.auth.admin.getUserById(userId);
     if (!user?.email) throw new Error("User not found");
 
     const dir = condition === "above" ? "▲ rose above" : "▼ fell below";
     const fmt = (n: number) =>
-      n >= 1000 ? n.toLocaleString("en-US", { maximumFractionDigits: 2 })
-      : n >= 1 ? n.toFixed(4)
-      : n.toFixed(8);
+      n >= 1000
+        ? n.toLocaleString("en-US", { maximumFractionDigits: 2 })
+        : n >= 1
+          ? n.toFixed(4)
+          : n.toFixed(8);
 
     const html = `
 <!DOCTYPE html>
@@ -110,7 +107,7 @@ serve(async (req) => {
     const resendRes = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${RESEND_API_KEY}`,
+        Authorization: `Bearer ${RESEND_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -136,7 +133,6 @@ serve(async (req) => {
     return new Response(JSON.stringify({ ok: resendRes.ok, data: resendData }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-
   } catch (e: any) {
     console.error("send-alert-email error:", e);
     return new Response(JSON.stringify({ error: e.message }), {
