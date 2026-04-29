@@ -4,7 +4,6 @@ import { ExternalLink, RefreshCw, Newspaper } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_app/news")({
   component: NewsPage,
@@ -27,20 +26,14 @@ const CATEGORIES = [
 
 type Category = typeof CATEGORIES[number]["id"];
 
-// Calls the Supabase Edge Function proxy — works on production AND localhost
 async function fetchNews(q: string): Promise<Article[]> {
-  const { data, error } = await supabase.functions.invoke("news-proxy", {
-    body: null,
-    headers: {},
-    method: "GET",
-  });
-
-  // supabase.functions.invoke doesn't support query params easily, use fetch directly
-  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/news-proxy?q=${encodeURIComponent(q)}&pageSize=20`;
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const url = `${supabaseUrl}/functions/v1/news-proxy?q=${encodeURIComponent(q)}&pageSize=20`;
   const res = await fetch(url, {
     headers: {
-      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      apikey: supabaseKey,
+      Authorization: `Bearer ${supabaseKey}`,
     },
   });
   const json = await res.json();
