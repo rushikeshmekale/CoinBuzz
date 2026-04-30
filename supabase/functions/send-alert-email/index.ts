@@ -6,6 +6,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
+const BREVO_API_KEY = Deno.env.get("BREVO_API_KEY") ?? "";
 const APP_URL = Deno.env.get("APP_URL") ?? "https://coinbuzz.vercel.app";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -104,21 +105,20 @@ serve(async (req) => {
     const text = `CoinBuzz Alert: ${symbol} ${dir} your target of $${fmt(targetPrice)}. Triggered at $${fmt(triggeredPrice)}. View: ${APP_URL}/alerts`;
 
     // Send via Resend
-    const resendRes = await fetch("https://api.resend.com/emails", {
+    const resendRes = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${RESEND_API_KEY}`,
+        "api-key": BREVO_API_KEY,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "CoinBuzz Alerts <onboarding@resend.dev>",
-        to: [user.email],
+        sender: { name: "CoinBuzz Alerts", email: "rushikeshmekale@gmail.com" },
+        to: [{ email: user.email }],
         subject: `🔔 ${symbol} alert triggered — $${fmt(triggeredPrice)}`,
-        html,
-        text,
+        htmlContent: html,
+        textContent: text,
       }),
     });
-
     const resendData = await resendRes.json();
 
     // Update alert_history email_status
