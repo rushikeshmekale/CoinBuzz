@@ -64,3 +64,11 @@ self.addEventListener("sync", (e) => {
     e.waitUntil(Promise.resolve());
   }
 });
+// 🌐 Optional caching (for offline feel)
+self.addEventListener("fetch", (event) => {
+  event.respondWith(
+    caches.match(event.request).then((res) => {
+      return res || fetch(event.request);
+    }),
+  );
+});
